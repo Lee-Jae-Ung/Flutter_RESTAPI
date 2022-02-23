@@ -169,6 +169,8 @@ class _WithNavigatorState extends State<WithNavigator> {
 */
 
 import 'dart:async';
+import 'dart:math';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:path/path.dart';
@@ -176,19 +178,20 @@ import 'package:sqflite/sqflite.dart';
 import 'package:http/http.dart' as http;
 
 
-
-Future<String> fetchPost() async {
-  final response =
-  await http.get(Uri.parse('http://203.250.77.238:50001/manage/Status/RawData.csv'));
-  if (response.statusCode == 200) {
-    // 만약 서버로의 요청이 성공하면, JSON을 파싱합니다.
-    return response.body;
-  } else {
-    // 만약 요청이 실패하면, 에러를 던집니다.
-    throw Exception('Failed to load post');
+/*
+Future<String> _downloadCsv() async {
+  //const url = "https://projects.fivethirtyeight.com/soccer-api/international/spi_global_rankings_intl.csv";
+  const url = "http://203.250.77.238:50001/manage/Status/RawData.csv";
+  try {
+    String csvRead = await http.read(Uri.parse(url));
+    return csvRead;
+  }
+  catch(e) {
+    //print('download error:$e');
+    return '';
   }
 }
-
+*/
 class SqliteTestModel {
   Database? _database;
 
@@ -199,7 +202,7 @@ class SqliteTestModel {
   }
 
   initDB() async {
-    String path = join(await getDatabasesPath(), 'ttttt.db');
+    String path = join(await getDatabasesPath(), 'RawData.db');
 
     return await openDatabase(
         path,
@@ -245,9 +248,24 @@ class SqliteTestModel {
         item.toMap()
     );
   }
+
+  Future<void> testUpdate(RawData item) async {
+    var db = await database;
+
+    await db.update(
+        'Raws',
+        item.toMap(),
+        where: 'No = ?',
+        whereArgs: [item.No]
+    );
+  }
 }
 
-void main() => runApp(testApp());
+void main() => runApp(MaterialApp(
+  title: 'Navigator',
+  home: testApp(),
+)
+);
   //WidgetsFlutterBinding.ensureInitialized();
 
 
@@ -275,7 +293,7 @@ void main() => runApp(testApp());
   print(_result);
 */
 
-
+List<double> dbarr = <double>[];
 class testApp extends StatefulWidget {
   const testApp({Key? key}) : super(key: key);
 
@@ -283,21 +301,17 @@ class testApp extends StatefulWidget {
   _testAppState createState() => _testAppState();
 }
 
-class _testAppState extends State<testApp>{
-  Future<String>? myFuture;
+class _testAppState extends State<testApp> {
+
 
   @override
-  void initState(){
-    myFuture = fetchPost();
-    super.initState();
-  }
+  Widget build(BuildContext context) {
 
-  @override
-  Widget build(BuildContext context){
     var _model = SqliteTestModel();
-    int i=0;
+    //int i = 0;
     var temp;
     var list;
+
 
     print("build");
 
@@ -308,43 +322,189 @@ class _testAppState extends State<testApp>{
         appBar: AppBar(
           title: Text('FDE'),
         ),
-        body: Center(
+        body: Column(
+          children: <Widget>[
+            OutlinedButton(
+                onPressed: () async {
+                  String _result;
+                  var list = await _model.Raws();
 
-          child : FutureBuilder<String>(
-            future: myFuture,
-            builder: (context,snapshot){
-              temp = snapshot.data.toString().replaceAll('Ch1','').split(',');
+                  setState(() {
+                    _result = '';
+
+                    for (var item in list) {
+                      _result += '${item.No} - ${item.Ch1}\n';
+                    }
+                  });
+                  print("select");
+                  },
+
+                child: Text('SELECT')
+            ),
+
+            OutlinedButton(
+                onPressed: () async {
+                  const url = "http://203.250.77.238:50001/manage/Status/RawData.csv";
+                  String csvRead = await http.read(Uri.parse(url));
+                  var temp = csvRead.toString()
+                      .split('\n');
+
+                  print(temp.length);
+                  int i;
+                  for (i=0;i<(temp.length-1);i++) {
+                    _model.testInsert(RawData(
+                        No: i,
+                        Ch1: double.parse(temp[i])
+                    ));
+                  }
+
+
+                },
+
+                child: Text('INSERT')
+            ),
+            OutlinedButton(
+                onPressed: () async {
+                  dbarr = <double>[];
+                  const url = "http://203.250.77.238:50001/manage/Status/RawData.csv";
+                  String csvRead = await http.read(Uri.parse(url),headers: {"Access-Control-Allow-Headers": "Access-Control-Allow-Origin, Accept"});
+                  var temp = csvRead.toString()
+                      .split('\n');
+
+
+                  int i;
+                  for (i=0;i<(temp.length-1);i++) {
+                    dbarr.add(double.parse(temp[i]));
+                  }
+                  /*
+                  int i;
+                  for (i=0;i<(temp.length-1);i++) {
+                    _model.testUpdate(RawData(
+                        No: i,
+                        Ch1: double.parse(temp[i])
+                    ));
+                  }
+
+                   */
+                  print(dbarr.length);
+
+                  Navigator.push(context,
+                      MaterialPageRoute<void>(builder: (BuildContext context) {
+                        return ChartPage();
+                      })
+                  );
+
+
+                },
+
+                child: Text("UPDATE")
+            ),
+
+
+
+          ],
+
+
 /*
-              for(String value in temp){
-                _model.testInsert(RawData(
-                No: i++,
-                Ch1: double.parse(value)
-                ));
-              }
-              */
+              OutlinedButton(
+                  onPressed: () async {
+                    String _result;
+                    var list = await _model.Raws();
 
+                    setState(() {
+                      _result = '';
 
-              list = _model.Raws();
-              String _result = '';
-              for(var item in list){
-                _result += '${item.No} , ${item.Ch1}\n';
-              }
+                      for (var item in list) {
+                        _result += '${item.No} - ${item.Ch1}\n';
+                      }
+                    });
+                  },
+                  child: Text('SELECT')
+              ),
 
-              print(_result);
+              OutlinedButton(
+                  onPressed: () async {
+                    FutureBuilder(
+                        future: myFuture,
+                        builder: (context, snapshot) {
+                          temp = snapshot.data.toString()
+                              .replaceAll('Ch1', '')
+                              .split(',');
+                          i=0;
+                          for (String value in temp) {
+                            _model.testUpdate(RawData(
+                                No: i++,
+                                Ch1: double.parse(value)
+                            ));
+                          }
+                          return Text("zz");
+                        });
+                  },
+                  child: Text('UPDATE')
+              ),
+*/
 
+              /*
+                list = _model.Raws();
+                String _result = '';
+                for(var item in list){
+                  _result += '${item.No} , ${item.Ch1}\n';
+                }
+  */
+              //print(_result);
 
-
-              return Text("zz");
-            },
-          ),
+          )
         ),
-      ),
-    );
+      );
+
+
   }
 }
 
 
+class ChartPage extends StatelessWidget {
 
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+        home: Scaffold(
+          appBar: AppBar(
+            title: Text("Chart Page"),
+          ),
+          body: Container(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: Center(
+              child: Column(
+                children: <Widget>[
+                  Container(
+                    child: CustomPaint(
+                        size: Size(400, 200),
+                        foregroundPainter: LineChart(
+                            points: dbarr,
+                            pointSize: 1.0,
+                            // 점의 크기를 정합니다.
+                            lineWidth: 1.0,
+                            // 선의 굵기를 정합니다.
+                            lineColor: Colors.purpleAccent,
+                            // 선의 색을 정합니다.
+                            pointColor: Colors.purpleAccent)), // 점의 색을 정합니다.
+                  ),
+
+                  RaisedButton(
+                    child: Text('Go First Screen'),
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        )
+    );
+  }
+}
 
 class RawData {
   final int No;
@@ -366,4 +526,122 @@ class RawData {
   }
 
 
+}
+
+class LineChart extends CustomPainter {
+  List<double> points;
+  double lineWidth;
+  double pointSize;
+  Color lineColor;
+  Color pointColor;
+  int maxValueIndex=0;
+  int minValueIndex=0;
+  double fontSize = 18.0;
+
+  LineChart({required this.points, required this.pointSize, required this.lineWidth, required this.lineColor, required this.pointColor});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    List<Offset> offsets = getCoordinates(points, size); // 점들이 그려질 좌표를 구합니다.
+
+    drawText(canvas, offsets); // 텍스트를 그립니다. 최저값과 최고값 위아래에 적은 텍스트입니다.
+
+    drawLines(canvas, size,  offsets); // 구한 좌표를 바탕으로 선을 그립니다.
+    drawPoints(canvas, size, offsets); // 좌표에 따라 점을 그립니다.
+  }
+
+  void drawLines(Canvas canvas, Size size, List<Offset> offsets) {
+    Paint paint = Paint()
+      ..color = lineColor
+      ..strokeWidth = lineWidth
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    Path path = Path();
+
+    double dx = offsets[0].dx;
+    double dy = offsets[0].dy;
+
+    path.moveTo(dx, dy);
+    offsets.map((offset) => path.lineTo(offset.dx , offset.dy)).toList();
+
+    canvas.drawPath(path, paint);
+  }
+
+  void drawPoints(Canvas canvas, Size size, List<Offset> offsets) {
+    Paint paint = Paint()
+      ..color = pointColor
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = pointSize;
+
+    canvas.drawPoints(PointMode.points, offsets, paint);
+  }
+
+  List<Offset> getCoordinates(List<double> points, Size size) {
+    List<Offset> coordinates = [];
+
+    double spacing = size.width / (points.length - 1); // 좌표를 일정 간격으로 벌리지 위한 값을 구합니다.
+    double maxY = points.reduce(max); // 데이터 중 최소값을 구합니다.
+    double minY = points.reduce(min); // 데이터 중 최대값을 구합니다.
+
+    double bottomPadding = fontSize * 2; // 텍스트가 들어갈 패딩(아랫쪽)을 구합니다.
+    double topPadding = bottomPadding * 2; // 텍스트가 들어갈 패딩(위쪽)을 구합니다.
+    double h = size.height - topPadding; // 패딩을 제외한 화면의 높이를 구합니다.
+
+    for (int index = 0; index < points.length; index++) {
+      double x = spacing * index; // x축 좌표를 구합니다.
+      double normalizedY = points[index] / maxY; // 정규화한다. 정규화란 [0 ~ 1] 사이가 나오게 값을 변경하는 것.
+      double y = getYPos(h, bottomPadding, normalizedY); // Y축 좌표를 구합니다. 높이에 비례한 값입니다.
+
+      Offset coord = Offset(x, y);
+      coordinates.add(coord);
+
+      findMaxIndex(points, index, maxY, minY); // 텍스트(최대값)를 적기 위해, 최대값의 인덱스를 구해놓습니다.
+      findMinIndex(points, index, maxY, minY); // 텍스트(최소값)를 적기 위해, 최대값의 인덱스를 구해놓습니다.
+    }
+
+    return coordinates;
+  }
+
+  double getYPos(double h, double bottomPadding, double normalizedY) => (h + bottomPadding) - (normalizedY * h);
+
+
+  void findMaxIndex(List<double> points, int index, double maxY, double minY) {
+    if (maxY == points[index]) {
+      maxValueIndex = index;
+    }
+  }
+
+  void findMinIndex(List<double> points, int index, double maxY,double minY) {
+    if (minY == points[index]) {
+      minValueIndex = index;
+    }
+  }
+
+  void drawText(Canvas canvas, List<Offset> offsets) {
+    String maxValue = points.reduce(max).toString();
+    String minValue = points.reduce(min).toString();
+
+    drawTextValue(canvas, minValue, offsets[minValueIndex], false);
+    drawTextValue(canvas, maxValue, offsets[maxValueIndex], true);
+  }
+
+  void drawTextValue(Canvas canvas, String text, Offset pos, bool textUpward) {
+    TextSpan maxSpan = TextSpan(style: TextStyle(fontSize: fontSize, color: Colors.black, fontWeight: FontWeight.bold), text: text);
+    TextPainter tp = TextPainter(text: maxSpan, textDirection: TextDirection.ltr);
+    tp.layout();
+
+    double y = textUpward ? -tp.height * 1.5  : tp.height * 0.5; // 텍스트의 방향을 고려해 y축 값을 보정해줍니다.
+    double dx = pos.dx - tp.width / 2; // 텍스트의 위치를 고려해 x축 값을 보정해줍니다.
+    double dy = pos.dy + y;
+
+    Offset offset = Offset(dx, dy);
+
+    tp.paint(canvas, offset);
+  }
+
+  @override
+  bool shouldRepaint(LineChart oldDelegate) {
+    return oldDelegate.points != points;
+  }
 }
